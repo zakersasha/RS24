@@ -1,4 +1,7 @@
-# TODO 1) csv
+"""Очередность
+title,price,discount_price,product_link,stock,is_order,inventory,article,id_category,id_site,id_catalog,id_stock_name,id_unit,id_city
+"""
+
 import csv
 import os
 import zipfile
@@ -75,11 +78,15 @@ def gather_data(file_name):
         price = float(item.find("RetailPrice").text)  # Базовая цена товара с НДС
         discount_price = float(item.find("CustPrice").text)  # Цена клиента с НДС
         product_link = "-1"  # Ссылка на товар
-        inventory = int(item.find("SumQTY").text.split('.')[0])  # Количество товара
-        if inventory > 0:
-            stock = 1  # Наличие
-        else:
+        inventory = item.find("SumQTY").text  # Количество товара
+
+        if inventory.split('.')[0] == '':
+            inventory = 0  # Количество товара
             stock = 0  # Наличие
+        else:
+            inventory = int(inventory.split('.')[0])  # Количество товара
+            stock = 1  # Наличие
+
         is_order = 1  # Возможность заказа
         article = item.find("SenderPrdCode").text  # Артикул товара
         id_site = 'RS24.ru'  # Сайт
@@ -100,13 +107,15 @@ def gather_data(file_name):
                                'id_stock_name': id_stock_name, 'id_unit': id_unit, 'id_city': id_city})
 
 
-connect_to_ftp_structure()
-connect_to_ftp_data()
-print(result)
+def result_to_csv(result):
+    os.remove('result.xml')
+    keys = result[0].keys()
+    with open('data.csv', 'w', newline='') as output_file:
+        dict_writer = csv.DictWriter(output_file, keys)
+        dict_writer.writeheader()
+        dict_writer.writerows(result)
 
-# def result_to_csv(result):
-#     keys = result[0].keys()
-#     with open('data.csv', 'w', newline='') as output_file:
-#         dict_writer = csv.DictWriter(output_file, keys)
-#         dict_writer.writeheader()
-#         dict_writer.writerows(result)
+
+connect_to_ftp_structure()  # Вызов формирования категорий и каталога
+connect_to_ftp_data()  # Вызов получения продуктов и формирования результата
+result_to_csv(result)  # Вызов конвертирования результата в csv

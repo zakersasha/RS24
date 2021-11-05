@@ -1,7 +1,8 @@
 """Очередность
 title,price,discount_price,product_link,stock,is_order,inventory,article,id_category,id_site,id_catalog,id_stock_name,id_unit,id_city
+Interpreter 3.8, все библиотеки стандартные
 """
-
+import socket
 import csv
 import os
 import zipfile
@@ -15,31 +16,37 @@ unit = {'PCE': 'шт', 'NMP': 'упак', 'MTR': 'м'}
 
 
 def connect_to_ftp_data():
-    file_name = "result.xml"
-    ftp = FTP()
-    ftp.connect(host='service.russvet.ru', port=21021)
-    ftp.login(user='Samoletdevelopment', passwd='Gn6pYJ8U')
-    ftp.cwd('pricat/ARCHIVE')
-    latest_file = ftp.nlst()[0]
+    try:
+        file_name = "result.xml"
+        ftp = FTP(timeout=30)
+        ftp.connect(host='service.russvet.ru', port=21021)
+        ftp.login(user='Samoletdevelopment', passwd='Gn6pYJ8U')
+        ftp.cwd('pricat/ARCHIVE')
+        latest_file = ftp.nlst()[0]
 
-    download_data(ftp, latest_file, file_name)
-    gather_data(file_name)
+        download_data(ftp, latest_file, file_name)
+        gather_data(file_name)
 
-    ftp.quit()
+        ftp.quit()
+    except socket.timeout:
+        return 'Запустите парсер снова'
 
 
 def connect_to_ftp_structure():
-    file_name = 'structure.zip'
-    ftp = FTP()
-    ftp.connect(host='service.russvet.ru', port=21021)
-    ftp.login(user='prodat', passwd='bT6tsv3')
-    ftp.cwd('sklad/TVER')
-    latest_file = ftp.nlst()[-1]
+    try:
+        file_name = 'structure.zip'
+        ftp = FTP(timeout=30)
+        ftp.connect(host='service.russvet.ru', port=21021)
+        ftp.login(user='prodat', passwd='bT6tsv3')
+        ftp.cwd('sklad/TVER')
+        latest_file = ftp.nlst()[-1]
 
-    download_data(ftp, latest_file, file_name)
-    unzip_structure_file(file_name)
+        download_data(ftp, latest_file, file_name)
+        unzip_structure_file(file_name)
 
-    ftp.quit()
+        ftp.quit()
+    except socket.timeout:
+        return 'Запустите парсер снова'
 
 
 def download_data(ftp, latest_file, file_name):
@@ -79,13 +86,12 @@ def gather_data(file_name):
         discount_price = float(item.find("CustPrice").text)  # Цена клиента с НДС
         product_link = "-1"  # Ссылка на товар
         inventory = item.find("SumQTY").text  # Количество товара
+        stock = 0  # Наличие
 
         if inventory.split('.')[0] == '':
             inventory = 0  # Количество товара
-            stock = 0  # Наличие
         else:
             inventory = int(inventory.split('.')[0])  # Количество товара
-            stock = 1  # Наличие
 
         is_order = 1  # Возможность заказа
         article = item.find("SenderPrdCode").text  # Артикул товара
@@ -96,8 +102,8 @@ def gather_data(file_name):
 
         for cat in categories:
             if cat['code'] == article:
-                id_category = cat.get('catalog')  # Категория
-                id_catalog = cat.get('category')  # Каталог
+                id_catalog = cat.get('catalog')  # Категория
+                id_category = '{};{}'.format(cat.get('catalog'), cat.get('category'))
                 categories.append({'code': cat, 'id_category': id_category, 'id_catalog': id_catalog})
 
                 result.append({'title': title, 'price': price, 'discount_price': discount_price,
@@ -109,6 +115,8 @@ def gather_data(file_name):
 
 def result_to_csv(result):
     os.remove('result.xml')
+    os.remove('structure.zip')
+
     keys = result[0].keys()
     with open('data.csv', 'w', newline='') as output_file:
         dict_writer = csv.DictWriter(output_file, keys)
